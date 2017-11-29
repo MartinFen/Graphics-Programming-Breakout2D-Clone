@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Project</title>
+    <style type="text/css">
+        canvas {
+            border: 1px solid grey;
+            margin-left: 50px;
+        }
+    </style>
+  </head>
+  <body>
+      
+    <canvas id="canvasOne" width="1000" height="500"></canvas>
+    
+    <!--adapted from https://www.w3schools.com/tags/tryit.asp?filename=tryhtml5_audio_loop -->
+    <!--adapted from https://www.w3schools.com/tags/tryit.asp?filename=tryhtml5_audio_autoplay -->
+    <!-- Music: https://www.bensound.com -->
+    <audio autoplay loop>
+        <source src="bensound-summer.mp3" type="audio/mp3">
+    </audio>
+    
+    <script type="text/javascript">
+    //http://www.williammalone.com/articles/create-html5-canvas-javascript-sprite-animation/
+
+    // Gets a handle to the element with id canvasOne.
+    var canvas = document.getElementById("canvasOne");
+    // Set the canvas up for drawing in 2D.
+    var ctx = canvas.getContext("2d");
+
+    document.addEventListener("keydown", keyDownHandler, false);
+    document.addEventListener("keyup", keyUpHandler, false);
+
+    //A group of values for the state of the blocks and the lock for the ball at game start
+    const STATUS_CODES = {
+        enterKeyDisabled:false,
+        ALIVE : 1,
+        DEAD : 0
+    }
+    //Game board class
+    class GameBoard {
+        constructor() {
+            this.img = new Image();
+            this.img.src = 'stars.jpg';
+            this.x=-400;
+            this.y=-300;
+            this.angle=0;
+            this.lives=5;
+            this.score=0;
+            this.gameStarted=false;
+        }
+        //draws and rotates canvas image
+        drawBackground() {
+            var centerX=canvas.width/2;
+            var centerY=canvas.height/2;
+            ctx.save();
+            ctx.translate(centerX, centerY); 
+            ctx.rotate(this.angle);
+            ctx.translate(-centerX, -centerY);
+            ctx.scale(1,1.2);
+            ctx.drawImage(this.img, this.x, this.y, this.img.width, this.img.height);
+            ctx.restore();
+            this.angle +=0.001;
+        }
+        //draws score text
+        drawScore() {
+	        ctx.font = "20px Arial";
+	        ctx.fillStyle = "white";
+	        ctx.fillText("Score: "+gameBoard.score, 8, 20);
+    	}
+        //draws lives 
+    	drawLives() {
+	        ctx.font = "20px Arial";
+	        ctx.fillStyle = "white";
+	        ctx.fillText("Lives: "+gameBoard.lives, canvas.width-80, 20);
+    	}
+        //updates lives and each time a player loses a life the ball resets to above the paddle until no lives are left then its game over
+        updateLives() {       
+            if(ball.y - ball.r > canvas.height) {
+                if(gameBoard.lives<=1){
+	                alert("GAME OVER");
+	                document.location.reload();
+	            }
+                else {
+    	           gameBoard.lives--;
+    	           STATUS_CODES.enterKeyDisabled=false;
+    	           gameBoard.gameStarted=false;
+    	           ball.x = paddle.paddleX + paddle.paddleWidth/2;
+    	           ball.y = paddle.paddleY - (ball.r+2);
+    	           ball.xVel=0;
+    	           ball.yVel=0;
+                }
+            } 
+        }
+        //increases score as each block is destroyed and if all blocks are destroyed game is won
+        updateScore(){
+        	this.score++;
+            if(this.score == blocks.numRow*blocks.numColumn) {
+				alert("YOU WIN, CONGRATS!");
+				document.location.reload();
+          	}
+        }    
+    };
+    const gameBoard = new GameBoard();
+    //Block class
+    class Block {
+        constructor() {
+            this.numColumn = 10; //block colums
+            this.numRow = 8; //block rows
+            this.width = 80; //block width
+            this.height = 20; //block height
+            this.blockSpace = 2; //spacing betweens blocks
+            this.blockOffsetTop = 80; //offset from bottom of canvas
+            this.blockOffsetLeft = 90; // offset from left of canvas
+            this.blockArray=[];
+            this.initialized = false;
+            this.img = new Image();
+            this.img.src = 'Block2D.png';
+        }
+        //function for initialising games blocks once
+        initBoard() {
+            for (var col = 0; col < blocks.numColumn; col++) {
+                blocks.blockArray[col] = [];
+                for (var row=0; row < blocks.numRow; row++) {
+                    blocks.blockArray[col][row] = { 
+                        x:0, y:0, alive : STATUS_CODES.ALIVE
+                    };
+                }   
+            }
+            blocks.initialized = true;
+        }
+        //draw blocks based on status code seen above function
+        drawBlock(){
+            if(!blocks.initialized) { // only execute this code once
+                blocks.initBoard();
+            }
+            for (var col = 0; col < blocks.numColumn; col++) {
+                for (var row=0; row < blocks.numRow; row++) {
+                    if (blocks.blockArray[col][row].alive == 1) {
+                        var y = (row * (blocks.height + blocks.blockSpace)) + blocks.blockOffsetTop;
+                        var x = (col * (blocks.width + blocks.blockSpace)) + blocks.blockOffsetLeft;
+                        blocks.blockArray[col][row].x = x;
+                        blocks.blockArray[col][row].y = y;
+                        ctx.drawImage(blocks.img, x, y, blocks.width, blocks.height);
+                    }
+                }
+            }
+        }   
+    };
+    const blocks = new Block();
+    //Paddle class
+    class Paddle {
+        constructor() {
+            this.paddleWidth=canvas.width/12;
+            this.paddleHeight=10;
+            this.paddleX=(canvas.width/2) - (this.paddleWidth/2);
+            this.paddleY=(canvas.height - 5) - this.paddleHeight;
+            this.rightPressed = false;
+            this.leftPressed = false;
+            this.img = new Image();
+            this.img.src = 'paddle.png';
+        }
+        //draw the paddle
+        drawPaddle() {
+            ctx.drawImage(paddle.img, paddle.paddleX, paddle.paddleY, paddle.paddleWidth, paddle.paddleHeight);
+        }
+        //update paddle location
+        updatePaddleLocation() {
+            if(paddle.rightPressed && paddle.paddleX < canvas.width-paddle.paddleWidth) {
+                 paddle.paddleX += 10;
+            }
+            else if(paddle.leftPressed && paddle.paddleX > 0) {
+                paddle.paddleX -= 10;
+            }
+        }   
+    };
+    const paddle = new Paddle();
+    //Ball class
+    class Ball {
+        constructor() {
+            this.r = 10;
+            this.x = paddle.paddleX + paddle.paddleWidth/2;
+            this.y = paddle.paddleY - (this.r+2);
+            this.xVel=0;
+            this.yVel=0;
+            this.rightPressed = false;
+            this.leftPressed = false;
+            //this.speedTrigger= false;
+            this.img = new Image(this.x,this.y,this.r);
+            this.img.src = 'ball.png';
+        }
+        //draw the ball
+        drawBall() { 
+                ctx.drawImage(ball.img, ball.x-ball.r, ball.y-ball.r, 20,20);
+        }
+        //update the ball location
+        updateLocation() {
+                //Update the x location.
+                ball.x =ball.x+ball.xVel;
+                ball.y =ball.y+ball.yVel;
+                //Updated ball location at game start
+                if(ball.rightPressed && ball.x <= canvas.width - paddle.paddleWidth/2 && gameBoard.gameStarted == false) {
+                    ball.x=ball.x;
+                    ball.x+= 10;
+                }
+                else if(ball.leftPressed && ball.x >= 0 + paddle.paddleWidth/2 && gameBoard.gameStarted == false) {
+                    ball.x -= 10;
+                }     
+        }   
+    };
+    const ball = new Ball();  
+    //Keydown event handler
+    function keyDownHandler(e) {
+        if(e.keyCode == 39) {
+            paddle.rightPressed = true;
+            ball.rightPressed = true;
+        }
+        else if(e.keyCode == 37) {
+            paddle.leftPressed = true;
+            ball.leftPressed = true;
+        }
+    }
+    //keyup event handler
+    function keyUpHandler(e) {
+        if(e.keyCode == 39) {
+            paddle.rightPressed = false;
+            ball.rightPressed = false;
+        }
+        else if(e.keyCode == 37) {
+            paddle.leftPressed = false;
+            ball.leftPressed = false;
+        }
+        else if(e.keyCode == 13){
+            if(STATUS_CODES.enterKeyDisabled == false){
+                ball.xVel=0;
+                ball.yVel=-3;
+                gameBoard.gameStarted=true;
+                STATUS_CODES.enterKeyDisabled=true;
+            }
+        }
+    }
+    //function for drawing the game components
+    function clearAndSetupGame() { 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.setTransform(1,0,0,1,0,0);
+        gameBoard.drawBackground();
+        gameBoard.drawScore();
+        gameBoard.drawLives();
+        ball.drawBall();
+        paddle.drawPaddle();
+        blocks.drawBlock();
+    }
+    //function for updating the locations, lives & score of the game
+    function updateGame(){
+        gameBoard.updateLives();
+        ball.updateLocation();
+        paddle.updatePaddleLocation();
+    }
+    //Function for detecting collisions and reacting to them for Ball,paddle,blocks & walls
+    function collisionDetectionAndReaction() {
+        //When the Ball hits left border
+        if(ball.x <= canvas.width + ball.r - canvas.width) {
+            ball.x = canvas.width + ball.r - canvas.width;//Set location
+            ball.xVel =-ball.xVel;//change direction
+        }
+        //When the Ball hits right border
+        else if(ball.x >= canvas.width - ball.r) {
+            ball.x = canvas.width - ball.r;
+            ball.xVel =-ball.xVel;  
+        }
+        //When the Ball hits top border
+        else if(ball.y <= canvas.height + ball.r - canvas.height) {
+            ball.y = canvas.height + ball.r - canvas.height;
+            ball.yVel =-ball.yVel;
+        }
+        //When the Ball hits the left of the paddle
+        else if(ball.x>=paddle.paddleX-ball.r&&ball.x<=paddle.paddleX+paddle.paddleWidth/3 && ball.y>=paddle.paddleY-ball.r) {
+            ball.yVel =-ball.yVel*1.05;
+            ball.xVel =-3;
+        }
+        //When the Ball hits the center of the paddle
+        else if(ball.x>=paddle.paddleX+paddle.paddleWidth/3-ball.r && ball.x<=paddle.paddleX+((paddle.paddleWidth/3)*2)-ball.r&&ball.y>=paddle.paddleY-ball.r){
+            ball.yVel =-ball.yVel*1.05;
+            ball.xVel =0;
+        }
+        //When the Ball hits the right of the paddle
+        else if(ball.x>=paddle.paddleX+((paddle.paddleWidth/3)*2)-ball.r && ball.x<=paddle.paddleX+paddle.paddleWidth&&ball.y>=paddle.paddleY-ball.r){
+            ball.yVel =-ball.yVel*1.05;
+            ball.xVel =3;
+        } 
+        //When the ball hits a block
+        for(var col = 0; col < blocks.numColumn; col++) {
+            for(var row=0; row < blocks.numRow; row++) {
+                const scopedBlock = blocks.blockArray[col][row];
+                if(scopedBlock.alive == STATUS_CODES.ALIVE) {  
+                    if(ball.x + ball.r >=scopedBlock.x && ball.x - ball.r <= scopedBlock.x + blocks.width && ball.y + ball.r >= scopedBlock.y && ball.y - ball.r <= scopedBlock.y + blocks.height) {
+                        ball.yVel = -ball.yVel;
+                        scopedBlock.alive = STATUS_CODES.DEAD;
+                        //updates the score by 1 point
+                        gameBoard.updateScore();
+                    }
+                }
+            }
+        }
+    }
+    //A function for animation
+    function repeatMe() {
+        clearAndSetupGame();
+        updateGame();
+        collisionDetectionAndReaction();
+        window.requestAnimationFrame(repeatMe);
+    }
+    repeatMe();
+    </script>
+  </body>
+</html>
